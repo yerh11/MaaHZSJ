@@ -1,0 +1,35 @@
+{
+    // 本文件主要定义了通用 UI 的行为和显示内容
+    // 可参考文档和示例添加更多您需要的功能
+    // 文档：https://maafw.xyz/docs/3.3-ProjectInterfaceV2
+    "interface_version": 2,
+    "name": "MaaHZSJ",
+    "description": "《魂坠深境》自动化，运行于 MuMu 模拟器。",
+    "license": "MIT",
+    "welcome": "首次使用！欢迎使用 MaaHZSJ!",
+    "version": "1.0.0",
+    "controller": [
+        {
+            // Adb 控制器无需配置 screencap/input，
+            // 由 MaaToolkitAdbDeviceFind 自动探测模拟器并选择最优方式
+            // MuMu 12 可走 EmulatorExtras 通道，为最快的截图/控制方式
+            "name": "MuMu模拟器",
+            "type": "Adb",
+            "display_short_side": 720 // 截图短边缩放长度；本机截图恰为 1280x720，故不缩放
+        }
+    ],
+    "resource": [
+        {
+            "name": "官服",
+            "path": [
+                "./resource"
+            ]
+        }
+    ],
+    "task": [
+        {
+            "name": "启动游戏",
+            "entry": "启动游戏"
+        }
+    ]
+}

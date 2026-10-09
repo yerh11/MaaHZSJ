@@ -1,0 +1,140 @@
+{
+    // ============ 主界面 → 仪式配置（难度选择）============
+    // 主界面中央的巨石「启动祭坛」——用户所说的"启动祭坛"，点它开局
+    "启动祭坛": {
+        "recognition": "OCR",
+        "expected": "启动祭坛",
+        "action": "Click",
+        "timeout": 20000,
+        "next": [
+            "仪式配置界面"
+        ]
+    },
+    // 主界面右侧竖排菜单中的「主仪式间」，同一条路径的另一个入口
+    "主仪式间": {
+        "recognition": "OCR",
+        "expected": "主仪式间",
+        "action": "Click",
+        "timeout": 20000,
+        "next": [
+            "仪式配置界面"
+        ]
+    },
+    // 仪式配置界面：以左上角标题为锚点
+    "仪式配置界面": {
+        "recognition": "OCR",
+        "expected": "仪式配置",
+        "action": "DoNothing",
+        "next": []
+    },
+    // 开始按钮：中央巨石上的「坠入深境」横幅。
+    // OCR 实测置信度 0.9996。曾经配过一张备用模板（btn_descend.png），
+    // 2026-10-01 连同 _未接线/ 整个删了 —— OCR 一直好用，多一张零引用的图
+    // 只会让人以为它在用。理由见 assets/resource/image/README.md。
+    "坠入深境": {
+        "recognition": "OCR",
+        "expected": "坠入深境",
+        "action": "Click",
+        "timeout": 20000
+    },
+    // 护符配置入口（右下角），战斗前配置护符用
+    "护符配置": {
+        "recognition": "TemplateMatch",
+        "template": "仪式/btn_amulet.png",
+        "action": "Click"
+    },
+
+    // ---------- 难度识别（居中项）----------
+    // 难度轮盘由易到难共 14 档：
+    //   普通 < 困难 < 险恶 < 严酷 < 极难 < 噩梦1层 ~ 噩梦9层
+    // 居中项最大即当前选中，左右滑动（一档约 150px/500ms）或直接点击两侧图标可切换。
+    // 识别方式：只对居中项名字那一条窄 ROI 做 OCR。
+    //   全屏 OCR 会把左右相邻档的名字一起读出来，窄 ROI 保证读到的就是居中那一档；
+    //   噩梦系列图标字形相同、只有名字里的数字不同，模板匹配区分不开（互相 0.93+），
+    //   所以这里一律用 OCR，不用模板。expected 是正则（部分匹配），故加 ^$ 锚定整体。
+    // 若改走脚本里的 post_recognition 快速路径，注意 roi 不生效，需自行裁剪后传入。
+    "难度-普通": {
+        "recognition": "OCR",
+        "expected": ["^普通$"],
+        "roi": [592, 526, 100, 40],
+        "action": "DoNothing"
+    },
+    "难度-困难": {
+        "recognition": "OCR",
+        "expected": ["^困难$"],
+        "roi": [592, 526, 100, 40],
+        "action": "DoNothing"
+    },
+    "难度-险恶": {
+        "recognition": "OCR",
+        "expected": ["^险恶$"],
+        "roi": [592, 526, 100, 40],
+        "action": "DoNothing"
+    },
+    "难度-严酷": {
+        "recognition": "OCR",
+        "expected": ["严酷", "^严$", "^酷$"],
+        "roi": [592, 526, 100, 40],
+        "action": "DoNothing"
+    },
+    "难度-极难": {
+        "recognition": "OCR",
+        "expected": ["^极难$"],
+        "roi": [592, 526, 100, 40],
+        "action": "DoNothing"
+    },
+    "难度-噩梦1层": {
+        "recognition": "OCR",
+        "expected": ["^噩梦$"],
+        "roi": [592, 526, 100, 40],
+        "action": "DoNothing"
+    },
+    "难度-噩梦2层": {
+        "recognition": "OCR",
+        "expected": ["^噩梦2层$"],
+        "roi": [592, 526, 100, 40],
+        "action": "DoNothing"
+    },
+    "难度-噩梦3层": {
+        "recognition": "OCR",
+        "expected": ["^噩梦3层$"],
+        "roi": [592, 526, 100, 40],
+        "action": "DoNothing"
+    },
+    "难度-噩梦4层": {
+        "recognition": "OCR",
+        "expected": ["^噩梦4层$"],
+        "roi": [592, 526, 100, 40],
+        "action": "DoNothing"
+    },
+    "难度-噩梦5层": {
+        "recognition": "OCR",
+        "expected": ["^噩梦5层$"],
+        "roi": [592, 526, 100, 40],
+        "action": "DoNothing"
+    },
+    "难度-噩梦6层": {
+        "recognition": "OCR",
+        "expected": ["^噩梦6层$"],
+        "roi": [592, 526, 100, 40],
+        "action": "DoNothing"
+    },
+    "难度-噩梦7层": {
+        "recognition": "OCR",
+        "expected": ["^噩梦7层$"],
+        "roi": [592, 526, 100, 40],
+        "action": "DoNothing"
+    },
+    "难度-噩梦8层": {
+        "recognition": "OCR",
+        "expected": ["^噩梦8层$"],
+        "roi": [592, 526, 100, 40],
+        "action": "DoNothing"
+    },
+    "难度-噩梦9层": {
+        "recognition": "OCR",
+        "expected": ["^噩梦9层$"],
+        "roi": [592, 526, 100, 40],
+        "action": "DoNothing"
+    }
+}
