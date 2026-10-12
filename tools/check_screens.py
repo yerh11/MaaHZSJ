@@ -6,14 +6,17 @@
 判据不写死目录名，而是**从认屏表反推**（`{s.handler.__module__}`）——
 所以「把某屏 handler 放错包」当场会被下面第 1b 条拦下。
 
-盯七件事（都是硬断言，错了退出码 1）：
+盯八件事（都是硬断言，错了退出码 1）：
 
   1. **屏模块之间不许互相 import，也不许 import recognizer / battle** ——
      屏是一堆叶子：认出哪一屏归认屏表说，动手只动自己那一屏。
      谁 import 谁都会在将来某天变成环，环在 import 期就炸。
   1b. **扫描面自检**：扫到的屏模块（定义了 handle 的那些）与认屏表里的 handler 模块
-     **必须一一对上**；`core/` 与 `shared/` 里**不许有 handle**。
+     **必须一一对上**；`core/`、`shared/`、`ops/` 里**不许有 handle**。
      专治"门禁换了目录却漏扫了某个包，还照样报全过"——`glob` 不递归就栽在这。
+  1c. **操作小类（`ops/`）之间不许互相 import**，也不许 import 屏模块 /
+     recognizer / battle —— 它们共用的是 `shared/grid.py` 那套机制，
+     谁也不比谁高一级（同 1 的理由）。
   2. **认屏表的顺序不变量**：确认弹窗屏第一；modal 全在非 modal 之前；
      地点专属全在「通用离开屏」之前；选卡屏 < 事件屏 < 事件结果屏；
      事件屏 < 真龙现身·第二页屏；游艺·结果屏 < 游艺·转盘屏；
@@ -56,7 +59,9 @@ SCRIPT_DIR = ROOT / "script"
 # `glob` **不递归**，会一个屏都扫不到、门禁还照样"全过" —— 那条静默漏检
 # 由下面 1b 的「扫到的 ⊇ 表里的」自检钉住。
 SCREEN_DIRS = [SCRIPT_DIR / d for d in ("nav", "nodes", "combat", "system")]
-NON_SCREEN_DIRS = [SCRIPT_DIR / d for d in ("core", "shared")]
+# `ops/` 是**操作小类**（一个卡牌操作一个模块），和 core/ shared/ 一样不是屏。
+NON_SCREEN_DIRS = [SCRIPT_DIR / d for d in ("core", "shared", "ops")]
+OPS_DIR = SCRIPT_DIR / "ops"
 
 sys.path.insert(0, str(SCRIPT_DIR))
 import recognizer  # noqa: E402
@@ -75,6 +80,14 @@ REASON_VALUES = {
 SCREEN_FILES = sorted(
     p for d in SCREEN_DIRS for p in d.rglob("*.py") if p.name != "__init__.py"
 )
+
+# 操作小类：`script/ops/` 下除 `__init__.py` 之外的模块（一个操作一个模块）。
+OPS_FILES = sorted(p for p in OPS_DIR.glob("*.py") if p.name != "__init__.py")
+OPS_STEMS = {p.stem for p in OPS_FILES}
+
+# 报告要多扫的文件 —— 卡牌机制搬进 `shared/grid.py` + `ops/` 之后，
+# 那些 `time.sleep` / 没带 guard 的 `click_when` 不能从报告里凭空消失。
+REPORT_FILES = SCREEN_FILES + OPS_FILES + [SCRIPT_DIR / "shared" / "grid.py"]
 
 # 认屏表里的 handler 住在哪些模块 —— 这是"谁是屏模块"的**唯一判据**。
 # 从前这里写死字面量 `"screens"`：搬家后那种写法不会报错，只会永远不匹配。
@@ -126,6 +139,64 @@ for d in NON_SCREEN_DIRS:
         for fn in ast.parse(p.read_text(encoding="utf-8")).body:
             if isinstance(fn, ast.FunctionDef) and (fn.name == "handle" or fn.name.startswith("handle_")):
                 errs.append(f"{d.name}/{p.name}:{fn.lineno}: {d.name}/ 里不许有 {fn.name}() —— 只有 nav/nodes/combat/system 放屏")
+
+# ------------------------------------------------- 1c. 操作小类（ops/）的 import 禁令
+#
+# `script/ops/` 一个操作一个模块（复制 / 移除 / 升级 / 销毁），**互不 import**：
+# 它们共用的是 `shared/grid.py` 那套机制，谁也不比谁高一级 —— 谁 import 谁
+# 都会在将来某天变成环（和屏模块同一条理由）。它们也不是屏：不许 import
+# 认屏表里的任何屏模块，也不许 import recognizer / battle。
+
+def _ops_targets(n):
+    """这条 import 语句碰到了哪些 ops 模块（返回 [(模块名, 原文)]）。"""
+    out = []
+    if isinstance(n, ast.Import):
+        for a in n.names:
+            parts = a.name.split(".")
+            if parts[0] == "ops" and len(parts) > 1:
+                out.append((parts[1], a.name))
+            elif parts[0] in OPS_STEMS:
+                out.append((parts[0], a.name))
+    else:
+        mod = n.module or ""
+        parts = mod.split(".")
+        if parts[0] == "ops":
+            if len(parts) > 1:
+                out.append((parts[1], mod))
+            else:                                    # from ops import card_destroy
+                out += [(a.name, f"from ops import {a.name}") for a in n.names]
+        elif parts[0] in OPS_STEMS:                  # import card_destroy / from card_destroy import ...
+            out.append((parts[0], mod))
+    return out
+
+
+for p in OPS_FILES:
+    tree = ast.parse(p.read_text(encoding="utf-8"))
+    for n in ast.walk(tree):
+        if not isinstance(n, (ast.Import, ast.ImportFrom)):
+            continue
+        if isinstance(n, ast.ImportFrom) and n.level and n.level > 0:
+            errs.append(f"ops/{p.name}:{n.lineno}: 同包相对 import（level={n.level}）"
+                        f" —— 操作小类之间不许互相 import")
+        for name, raw in _ops_targets(n):
+            if name == p.stem:
+                errs.append(f"ops/{p.name}:{n.lineno}: 自己 import 自己（{raw}）")
+            elif name in OPS_STEMS:
+                errs.append(f"ops/{p.name}:{n.lineno}: 操作小类之间不许互相 import（{raw}）"
+                            f" —— 共用机制走 shared/grid.py，别在它们之间接线")
+        mod = n.module if isinstance(n, ast.ImportFrom) else None
+        roots = [a.name.split(".")[0] for a in n.names] if isinstance(n, ast.Import) else [(mod or "").split(".")[0]]
+        for root in roots:
+            if root in FORBIDDEN_ROOTS:
+                errs.append(f"ops/{p.name}:{n.lineno}: 操作小类不许 import {root}"
+                            f" —— 认屏层只进不出，import 就成环")
+            if root in SCREEN_MODULES:
+                errs.append(f"ops/{p.name}:{n.lineno}: 操作小类不许 import 屏模块（{root}）")
+        if isinstance(n, ast.ImportFrom) and n.module:
+            # `from nodes import shop` 这种写法：模块名是 `nodes`、屏在 `nodes.shop`
+            for a in n.names:
+                if f"{n.module}.{a.name}" in SCREEN_MODULES:
+                    errs.append(f"ops/{p.name}:{n.lineno}: 操作小类不许 import 屏模块（{n.module}.{a.name}）")
 
 # ---------------------------------------------------------------- 2. 表的顺序
 
@@ -307,7 +378,7 @@ for i, s in enumerate(table, 1):
 
 report_gaps: list[str] = []
 report_sleeps: list[str] = []
-for p in SCREEN_FILES:
+for p in REPORT_FILES:
     tree = ast.parse(p.read_text(encoding="utf-8"))
     for n in ast.walk(tree):
         if not isinstance(n, ast.Call) or not isinstance(n.func, ast.Attribute):

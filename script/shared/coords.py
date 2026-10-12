@@ -128,7 +128,7 @@ SLOT_Y = (221, 387, 553)
 SLOT_HALF = 30
 
 # 左边那块详情面板的卡名带子（面板在不在看它亮不亮）。roi 与
-# `assets/resource/pipeline/事件.json` 的 `卡牌名` 节点**同值但不同用**。
+# `assets/resource/pipeline/卡牌族.json` 的 `卡牌名` 节点**同值但不同用**。
 PANEL_BAND = (215, 340, 245, 50)
 
 # 选卡屏上**收掉飘过来的卡牌信息框**的落点（2026-10-09 量）。**别用 `INFO_BOX_TAP`**：

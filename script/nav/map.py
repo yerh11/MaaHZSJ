@@ -1,7 +1,7 @@
 """地图识别与行走：读出当前视图的节点、哪些能去，并走过去。
 
 和相邻模块的分工：
-    assets/resource/pipeline/地图.json —— 识别定义（`地图节点文字` / `可前往标记`
+    assets/resource/pipeline/地图族.json —— 识别定义（`地图节点文字` / `可前往标记`
                                           / `可前往箭尖` / `可前往箭尾`）
     本文件                              —— 「怎么读、怎么点」
     debug/map.py                        —— 命令行入口（check / see / pan 三条量尺）
@@ -418,7 +418,7 @@ def pick_target(reachable):
     return best, f"按优先级走「{best['kind']}」(priority={p})"
 
 
-# 可前往标记的最低匹配分。**必须与 地图.json 里 `可前往标记` 的 threshold 一致。**
+# 可前往标记的最低匹配分。**必须与 地图族.json 里 `可前往标记` 的 threshold 一致。**
 #
 # 定 0.50 是两轮实测逼出来的。
 # 一轮拿三张存档图扫阈值（配对成功数 / 期望值）：
@@ -632,7 +632,7 @@ HEAD_MIN_SCORE = 0.68
 # 这一屏永远是「0 枚标记」→ 停车等人。所以这条路是**必要**的，不是锦上添花。
 # 第二条决定了 MARKER_FRAMES 够不够用，见那一段的补记。
 #
-# 取 0.68 与 HEAD_MIN_SCORE 同数（两侧余量见 地图.json 那个节点的注释：
+# 取 0.68 与 HEAD_MIN_SCORE 同数（两侧余量见 地图族.json 那个节点的注释：
 # 真尾巴 0.748 在上、亮度闸放得过去的最高冒牌货 0.553 在下），两路对称。
 TAIL_MIN_SCORE = 0.68
 # 裁块在整枚框里的偏移 `TAIL_DX`/`TAIL_DY` 与尺寸 `TAIL_W`/`TAIL_H` 已搬进

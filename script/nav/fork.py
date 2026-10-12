@@ -18,7 +18,7 @@
 分别写着什么，每次都照原样打进日志，事后能回头看这一层走的是哪条道。
 
 地图节点「深入」≠ 本屏「路口」，其它屏幕的对照表见
-assets/resource/pipeline/地点.json 的头部注释。
+assets/resource/pipeline/地点族.json 的头部注释（各族的头部注释里也各自记着它那一屏的地图节点名）。
 """
 
 import time

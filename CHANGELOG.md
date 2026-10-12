@@ -3,6 +3,39 @@
 本文件记录 MaaHZSJ 的版本变更。版本号与 `assets/interface.json` 的 `version` 保持一致；
 格式与 `.github/cliff.toml`（git-cliff）一致，将来的条目可由 git-cliff 自动生成。
 
+## 1.0.2 (2026-10-12)
+
+pipeline 改按**操作**分族，卡牌那一族的小类落进脚本层 —— **纯结构重构，行为一字未改**。
+
+### 🚜 代码重构
+
+- **pipeline 按操作分族**（用户 2026-10-12：「按照操作分族 / 如选择族, 战斗族等 /
+  同时将所有选择整合, 重构 json 结构」）：`assets/resource/pipeline/` 从 13 个文件
+  （`事件` / `路口` / `地点` / `祭坛` / `卡面` / `战斗` / `地图` / `启动` / `仪式` /
+   `结算` / `暂停` / `通用` / `锻造`）归位成 **11 个族文件**：选择族 · 卡牌族 · 战斗族 ·
+  游艺族 · 地点族 · 凝视族 · 地图族 · 启动族 · 仪式族 · 结算族 · 系统族。
+  **148 个节点逐节点点名归族**，整段剪切、注释跟着走，`recognition` / `action` /
+  `next` / `roi` / `expected` **一个参数都没动**（前后全量快照逐字节相同）。族名闭集
+  由 `tools/check_strings.py` 的 `FAMILIES` 钉住，防止将来随手加文件。
+  ⚠️ `assets/resource/image/` **一个字节都没动** —— 模板按相对路径精确解析，挪图就认不出。
+- **卡牌操作拆成独立小类**（去耦）：新增 `script/shared/grid.py`（卡牌网格机制：
+  格位投影 / 选中判据 /「确定」）与 `script/ops/`（`card_copy` · `card_remove` ·
+  `card_upgrade` · `card_destroy`，一个操作一个模块、互不 import、出口统一叫 `run`）。
+  `script/nodes/cardpick.py` 从 908 行缩成一张**副标题分派表**（145 行），
+  `script/nodes/deck.py` 保留自己的屏行、把销毁循环交给 `ops/card_destroy.py`。
+  判据常量（`SLOT_*` / `HALO_*` / `PANEL_MIN` …）数值一律照搬。
+  `tools/check_screens.py` 新增一条断言：`ops/` 里模块互不 import、也不 import 屏模块。
+- 引用旧路径的地方全部跟着改（`recognizer.py` / `strings.py` / `settlement.py` /
+  `nav/*.py` / `core/auto.py` / 各调试脚本与文档）；旧路径 grep 零残留。
+
+### 📚 文档
+
+- 新增 **`MaaHZSJ/CLAUDE.md`** —— 仓库自己的开发指引（结构 / 命令 / 门禁 / 铁律），
+  与工作区根那份（玩法与判据来历）分工，互不重复。
+- `docs/zh_cn/架构与流程图.md`：目录树与依赖图加上 `ops/` 第五层，新增「操作小类的
+  契约」一节（`run` 与 `handle` 守同一条返回契约）。
+- `assets/resource/image/README.md`：目录对照表改成按族的 pipeline 文件名。
+
 ## 1.0.1 (2026-10-12)
 
 「卡牌信息框」不再让脚本白等一场；顺手清掉一批过期的护符素材。
@@ -34,7 +67,7 @@
   候选模板（`护符-冲锋纹印` 等，2026-10-08 改成"按顺序点、谁弹面板就是谁"之后已成
   过期判据）＋ `地点/btn_amulet_close.png`（`关闭护符选择`）＋ `仪式/btn_amulet.png`
   （`护符配置`）—— 后两个从来没有节点或脚本引用过，`仪式/` 这个文件夹于是整个没了。
-  各自的来历与判据帧留在 `地点.json` / `仪式.json` 的注释、`image/README.md` 与
+  各自的来历与判据帧留在 `地点族.json` / `仪式族.json` 的注释、`image/README.md` 与
   `debug/reco_baseline.txt` 的命中记录里（要恢复照那些帧重裁）。
 
 ### 📚 文档

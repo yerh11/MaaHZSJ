@@ -50,7 +50,7 @@ WAIT_AMULET = "等待选护符"
 WAIT_AMULET_PICK = "等待选护符（已激活护符那一屏）"
 WAIT_CAMPFIRE = "等待篝火"
 WAIT_SHOP = "等待商店"
-WAIT_DECK = "等待销毁卡牌"     # 商店点「移除卡牌」弹出的那一屏（nodes/deck.py）
+WAIT_DECK = "等待销毁卡牌"     # 商店点「移除卡牌」弹出的那一屏（屏行在 nodes/deck.py，走法在 ops/card_destroy.py）
 WAIT_SINGLE_OPTION = "等待单选项"
 
 # 「离开地点」那一族：同一个动作、不同的屏，理由里带上屏名好定位。

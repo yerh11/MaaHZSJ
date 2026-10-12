@@ -8,7 +8,7 @@
 |---|---|---|
 | 停车留证 `snap + log + return` | 24 处逐行同构 | **并** → `park()` |
 | 「离开地点」之后清确认弹窗 | 6 处同一个两行套路 | **并** → `Game.leave_after()`（它是原语，放 `core/auto.py`） |
-| 「点一下再确认」4 处 | `campfire._confirm`（点确认键等它退场）/ `cardpick.confirm`（点确定等屏走）/ `fork._wait_rows`（**等 OCR 读出选项行**，根本不是点确认）/ `event._click_option`（**双击**同一格；「只单击」那档由事件集的 `tap` 指定）| **不并** —— 四个语义各不相同 |
+| 「点一下再确认」4 处 | `campfire._confirm`（点确认键等它退场）/ `grid.confirm`（点确定等屏走）/ `fork._wait_rows`（**等 OCR 读出选项行**，根本不是点确认）/ `event._click_option`（**双击**同一格；「只单击」那档由事件集的 `tap` 指定）| **不并** —— 四个语义各不相同 |
 | 战斗模态框 5 个方法 | 只有 `nightwatch_option` / `armor_option` / `last_chance` 三个真同构；`assimilate` 是"从右到左试一排"的循环 | **并那三个** → `Game._modal_click()`（放 `core/auto.py`） |
 
 还有 `log()` —— 全脚本**唯一**的输出口（2026-10-08 加）。从前各处直接 `print`，
