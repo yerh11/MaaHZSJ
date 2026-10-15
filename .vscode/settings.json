@@ -24,7 +24,13 @@
         }
     ],
     "files.associations": {
-        "**/assets/**/*.json": "jsonc"
+        // 全仓库的 json 一律按 JSONC 编辑（2026-10-15 用户定：「以后, 均使用jsonc,
+        // 显示说明使用的是jsonc」）。原先只映射 **/assets/**/*.json，于是往
+        // script/cards/*.json 里写 `//` 编辑器一声不吭、脚本跑到那儿当场炸。
+        // ⚠️ 唯一的例外是 script/events.json —— 它会被脚本整文件回写，
+        //    注释在那一步会被静默抹掉，所以那一份继续用严格 JSON 读
+        //    （写了 `//` 当场报错）。见 script/shared/jsonc.py。
+        "**/*.json": "jsonc"
     },
     "[json][jsonc]": {
         "editor.formatOnSave": true,

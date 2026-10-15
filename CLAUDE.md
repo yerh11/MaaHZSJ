@@ -133,8 +133,14 @@ python tools/configure.py          # 补 OCR 模型（仅在 model/ocr/ 不存�
 
 ## 约定与陷阱
 
-- `assets/**/*.json` 实际按 **JSONC** 处理（`.vscode/settings.json` 把
-  `**/assets/**/*.json` 映射成 `jsonc`），所以可以写 `//` 注释。缩进统一 **4 空格**。
+- **全仓库的 json 一律按 JSONC 处理**（2026-10-15 用户定：「以后, 均使用jsonc,
+  显示说明使用的是jsonc」）：`.vscode/settings.json` 把 `**/*.json` 映射成 `jsonc`，
+  脚本运行时读 json 也统一走 `script/shared/jsonc.py`，所以 `//` 与 `/* */`
+  随便写。缩进统一 **4 空格**。
+  ⚠️ **例外只有 `script/events.json`** —— 它会被 `nodes/event.py` 的 `save_book()`
+  **整文件回写**，`json.dump` 会把注释整段静默抹掉，所以那一份读的时候仍走严格
+  JSON（写了注释当场报错，好过被悄悄删掉），说明继续用 `_说明` / `_pick的取值`
+  那几条**键**写（键会被原样保住）。
 - **Schema 是补全与校验的共同来源**：pipeline 对应 `deps/tools/pipeline.schema.json`，
   interface 对应 `deps/tools/interface.schema.json`。改字段时保持与 schema 一致。
 - **OCR 模型不入库**：`assets/resource/model/ocr/` 被 `.gitignore` 忽略，靠

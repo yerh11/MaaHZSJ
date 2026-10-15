@@ -107,8 +107,13 @@ def strip_jsonc_comments(text):
             i = text.find("\n", i)
             i = n if i < 0 else i
         elif text.startswith("/*", i):
-            i = text.find("*/", i)
-            i = n if i < 0 else i + 2
+            # 块注释里的换行**留着**（和 validate_schema.py 那份、以及
+            # script/shared/jsonc.py 那份一致）：删完行号才对得上，
+            # 读坏了报的错才指得到真地方。从前这里是把整段直接跳过去的。
+            j = text.find("*/", i)
+            j = n if j < 0 else j + 2
+            out.append("\n" * text.count("\n", i, j))
+            i = j
         else:
             out.append(c)
             i += 1

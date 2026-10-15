@@ -3,6 +3,34 @@
 本文件记录 MaaHZSJ 的版本变更。版本号与 `assets/interface.json` 的 `version` 保持一致；
 格式与 `.github/cliff.toml`（git-cliff）一致，将来的条目可由 git-cliff 自动生成。
 
+## 1.0.4 (2026-10-15)
+
+全仓库的 json 一律按 **JSONC** —— 编辑器与脚本运行时两边口径一致。
+
+### ⚙️ 行为改动
+
+- **全仓库 json 按 JSONC 处理**（用户 2026-10-15：「以后, 均使用jsonc, 显示说明使用的是
+  jsonc」）：新增 `script/shared/jsonc.py`（去注释机器，只依赖标准库），`script/cards/`
+  五份配置改走它读。从前只有 `assets/**/*.json` 在**编辑器**里按 jsonc 走，脚本
+  **运行时**却是裸 `json.load` —— 往卡牌配置里写一句 `//`，编辑器一声不吭、脚本跑到
+  那儿当场炸。`.vscode/settings.json` 的 `files.associations` 从 `**/assets/**/*.json`
+  放宽到 `**/*.json`，三处文档（本仓库 `CLAUDE.md` · `docs/zh_cn/使用文档.md` ·
+  工作区根 `CLAUDE.md`）写明这条口径。
+  ⚠️ **例外只有 `script/events.json`**：它会被 `nodes/event.py` 的 `save_book()`
+  **整文件回写**，`json.dump` 会把注释静默抹掉 ⇒ 那一份继续用严格 JSON 读
+  （写了注释当场报错，好过被悄悄删掉），说明继续用 `_说明` / `_pick的取值` 那几条
+  **键**写（键会被原样保住）。这条由新增的 `debug/test_jsonc.py` 钉着。
+- **卡牌配置的报错口径**跟着改：`cards.py` 那句「不是合法 JSON（写注释了吗？）」改成
+  「注释可以写；这里是真的坏了」—— 现在先去注释、再判。
+
+### 🐛 修复
+
+- **`tools/check_strings.py` 的块注释会把换行吃掉**：它与 `tools/validate_schema.py`
+  里那份、以及新加的 `shared/jsonc.py` 是同一套规则的**三份实现**（`tools/` 不许
+  import `script/`，共用不了）。解析结果三份一直相同，但只有它丢换行 ⇒ 读坏了报的
+  行号指错地方。现在三份**逐字同解**，由 `debug/test_jsonc.py` 钉着
+  （15 条刁钻输入 + 全仓库 26 个 json 逐字比）。
+
 ## 1.0.3 (2026-10-15)
 
 卡牌「动哪几张」搬进配置文件、每次停车留一份自包含记录；顺手补上三处会白等一场的地方

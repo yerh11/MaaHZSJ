@@ -1,6 +1,6 @@
 """牌名这件事：**五张卡牌配置 + 判据** —— 所有屏共用这一份。
 
-五张配置住在 `script/cards/`（严格 JSON，改完不用重启脚本）：
+五张配置住在 `script/cards/`（**JSONC**，可以写 `//` 注释；改完不用重启脚本）：
 
 | 文件 | 管什么 | 今天的内容 |
 |---|---|---|
@@ -60,6 +60,7 @@ from pathlib import Path
 from strings import (卡名_无畏斧, 卡名_莽撞头槌, 卡名_隐痛,
                      卡面_隐痛, 卡面_无畏斧, 卡面_无畏斧_熔岩, 卡面_莽撞头槌,
                      卡牌_无畏斧)
+from shared import jsonc
 from shared.kit import log
 
 
@@ -138,13 +139,13 @@ def _read_names(key):
     path = CARDS_DIR / _FILES[key]
     try:
         with open(path, encoding="utf-8") as fp:
-            data = json.load(fp)
+            data = jsonc.load(fp)
     except FileNotFoundError:
         raise CardsConfigError(f"找不到配置文件 {path}") from None
     except json.JSONDecodeError as exc:
-        # 每一份都是严格 JSON —— `script/**` 不在 .vscode/settings.json 的 jsonc
-        # 映射里，所以写 `//` 注释会当场炸在这儿。
-        raise CardsConfigError(f"{path} 不是合法 JSON（写注释了吗？）：{exc}") from None
+        # 按 **JSONC** 读（2026-10-15 用户定「均使用jsonc」）：`//` 与 `/* */`
+        # 都随便写，只有真的坏了才炸在这儿。见 shared/jsonc.py。
+        raise CardsConfigError(f"{path} 不是合法 JSON（注释可以写；这里是真的坏了）：{exc}") from None
 
     if not isinstance(data, dict):
         raise CardsConfigError(f"{path} 的顶层应当是一个对象")
