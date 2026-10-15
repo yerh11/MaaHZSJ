@@ -20,11 +20,12 @@ import numpy as np
 from strings import (你的卡组, 销毁卡名, 销毁价钱, 销毁按钮, 销毁返回, 商店界面,
                      金币数量)
 from shared import gridstate
-from shared.cards import KEEP, KEEP_TEMPLATES, base_name, looks_like_name
+from shared.cards import (SCREEN_DECK, CardsConfigError, load_rules,
+                         looks_like_name)
 # 网格范围 / 三行格心 y / 归格半径 —— 固化坐标收在 shared/coords.py，import 回原名。
 from shared.coords import DECK_GRID as GRID
 from shared.coords import ROW_Y, SNAP
-from shared.reasons import WAIT_DECK
+from shared.reasons import WAIT_CARDS_CONFIG, WAIT_DECK
 from shared.kit import log, park
 
 # 投影用的判据：**笔触**（相邻像素的亮度差）超过 EDGE_ON 算"这儿有东西"。
@@ -190,14 +191,19 @@ def _read_grid(g):
     return None, None
 
 
-def protected(g, image, cs):
+def protected(g, image, cs, rules):
     """卡面说"这一格是保留名单里的牌"的格子：{(行, 列), ...}。
 
     四条卡面模板各命中的框，按**中心离哪个格心最近**归到那一格（见 `SNAP`：
     归不上的不算数，只打日志）。调用方拿它当"别碰"的名单。
+
+    **哪几张模板**由 `rules.keep_templates(SCREEN_DECK)` 给 —— 名字来自
+    `script/cards/保留.json`（减掉 移除.json），名字 ↦ 卡面见 `shared/cards.py`
+    的 `FACES`。`rules` 由 `run()` 在循环外取一次传进来（**别在这儿重载配置**：
+    那会 N 次读盘，还会让"循环走到一半改了配置"变成半程换判据）。
     """
     out = set()
-    for node in KEEP_TEMPLATES:
+    for node in rules.keep_templates(SCREEN_DECK):
         for box, score in g.matches(node, image):
             cx, cy = box[0] + box[2] // 2, box[1] + box[3] // 2
             near = min(cs, key=lambda c: (c["cx"] - cx) ** 2 + (c["cy"] - cy) ** 2)
@@ -343,6 +349,12 @@ def run(g, hit):
 
     返回值只管"要不要停"（`""` = 处理完 / 非空 = 理由），走去哪了看 print。
     """
+    try:
+        rules = load_rules()       # 一趟会话读一次，往下传（循环里不重载）
+    except CardsConfigError as exc:
+        return park(g, WAIT_CARDS_CONFIG, "cards_config_broken",
+            f"销毁面板：卡牌配置读不动（{exc}） —— 停下等人（已存 cards_config_broken.png）")
+
     gone = 0
 
     for _round in range(MAX_ROUNDS):
@@ -354,7 +366,7 @@ def run(g, hit):
             return park(g, WAIT_DECK, "deck_nogrid",
                 "销毁面板：右边那块卡组网格一张牌都没读出来 —— 停下等人（已存 deck_nogrid.png）")
 
-        keep = protected(g, image, cs)
+        keep = protected(g, image, cs, rules)
         free = [c for c in cs if (c["row"], c["col"]) not in keep]
         log(f"    销毁面板：网格 {len(cs)} 格，卡面认出保留名单里 {len(keep)} 格，"
               f"待核 {len(free)} 格")
@@ -367,7 +379,7 @@ def run(g, hit):
             if name is None:
                 return park(g, WAIT_DECK, "deck_name_unknown",
                             f"销毁面板：{c['row']}-{c['col']} 那一格点开了，可卡名读不出来 —— 停下等人（已存 deck_name_unknown.png）")
-            if base_name(name) in KEEP:
+            if rules.is_kept(name):
                 log(f"    ! {c['row']}-{c['col']}：卡面说「名单外」，读出来却是"
                       f"「{name}」（保留名单里的）—— **以名字为准**，不动它")
                 continue

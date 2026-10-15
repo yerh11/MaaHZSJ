@@ -44,12 +44,13 @@
 | **流程逻辑** | `script/battle.py` + `recognizer.py` + 四个屏包 `nav/ nodes/ combat/ system/` | "按什么顺序做、遇到分支怎么办" |
 | **操作小类** | `script/ops/` | 一个卡牌操作一个模块（copy / remove / upgrade / destroy），互不 import |
 | **原语层** | `script/core/auto.py` | `Game` 类：截图 / 识别 / 点击 / 等待 / 战斗 / 退局 |
-| **公共层** | `script/shared/` | `kit`（停车留证 `park` + 唯一日志口 `log`）· `reasons`（全部停车理由 + 两个协议值）· `coords`（**全部固化坐标**）· `cards`（保留卡名单）· `gridstate`（**全脚本唯一一处跨屏状态**）· `grid`（卡牌网格机制） |
+| **公共层** | `script/shared/` | `kit`（停车留证 `park` + 唯一日志口 `log`）· `reasons`（全部停车理由 + 两个协议值）· `coords`（**全部固化坐标**）· `cards`（**四份卡牌配置的加载 + 判据**；保留/移除的四个方式 = 它的 `MODE` 一行）· `gridstate`（**全脚本唯一一处跨屏状态**）· `grid`（卡牌网格机制） |
 
 ```
 script/
 ├── strings.py      「脚本 ↔ 游戏」字典 —— 脚本里不许出现游戏里的字，一律走它的常量
 ├── events.json     事件集（改事件策略的地方）
+├── cards/          四份卡牌配置（改"动哪几张牌"的地方）：保留 · 移除 · 升变 · 升级
 ├── recognizer.py   **唯一**一张认屏表：每屏一行（判据 + handler + 顺序 note）
 ├── battle.py       入口 / 跨局主循环
 ├── core/  shared/  ops/  nav/  nodes/  combat/  system/
@@ -121,7 +122,9 @@ python tools/configure.py          # 补 OCR 模型（仅在 model/ocr/ 不存�
   挪一张 png 就认不出（与 pipeline 递归读文件不同）。
 - **不动 `deps/`** —— 那是下载好的引擎成品（dll/exe/lib/schema），由 `tools/install.py`
   与 CI 管理。
-- **不动任何判据参数**：`events.json` 的策略、`reasons.py` 里理由的文字、认屏表顺序、
+- **不动任何判据参数**：`events.json` 的策略、`script/cards/` 那四份配置的名单、
+  `shared/cards.py` 的 `MODE`、`ops/card_upgrade.py` 的 `PARK`、
+  `reasons.py` 里理由的文字、认屏表顺序、
   `strings.py` 的常量值、各屏的阈值常量。要改先去根 CLAUDE.md 查来历、再问用户。
 - **脚本里不写游戏里的字**，一律走 `script/strings.py` 的常量（`g.click_node(离开地点)`）。
   改了名只改那一行，打错字 import 当场报。

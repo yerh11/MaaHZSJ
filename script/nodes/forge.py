@@ -23,7 +23,6 @@ import time
 from pathlib import Path
 from strings import (
     升变确认,
-    卡牌_无畏斧,
     卡牌升变界面,
     形态升变,
     离开地点,
@@ -32,7 +31,9 @@ from strings import (
     金币数量,
     锻造使界面,
     )
+from shared.cards import SCREEN_FORGE, CardsConfigError, load_rules
 from shared.reasons import (
+    WAIT_CARDS_CONFIG,
     WAIT_FORGE,
     )
 from shared.kit import log, park
@@ -43,6 +44,9 @@ ROOT = Path(__file__).parent.parent.resolve()
 # 随即定「没有上限」）。网格里还有未升变的斧头就一直升：升变一次那把卡就从土黄转橙、
 # 模板不再匹配（见 _axes），所以"取最靠前的一把"天然往前走，不会原地打转。
 # 金币不够 / 点了没反应时才停（那条出口见 _upgrade 里"金币没减"那一段）。
+#
+# ⚠️ **这里管的是"升几把"，"哪几种牌能升"在 `script/cards/升变.json`** —— 两个轴，
+#    别混（2026-10-13 把卡牌配置收进那个文件时特意分开的）。
 UPGRADES = None
 
 # 一把"未升变的斧头"的最低匹配分。**必须与 地点族.json 里 `卡牌-无畏斧` 的 threshold 一致。**
@@ -72,25 +76,29 @@ def _leave(g):
     return True
 
 
-def _axes(g, image):
+def _axes(g, image, rules):
     """网格里**未升变**的斧头，按自上而下、自左而右排。
 
     必须自己按分数筛：all_results 是**原始**结果，既不过 threshold 也不过滤
     expected（实测被选中高亮的那张只有 0.531，一样会返回）。直接拿它排序
     就会点到高分之外的东西。
+
+    **探哪几张模板**由 `rules.ascend_templates(SCREEN_FORGE)` 给 —— 名字来自
+    `script/cards/升变.json`，名字 ↦ 卡面见 `shared/cards.py` 的 `FACES`。
+    今天那份名单只有「无畏斧」一张，所以这里恒等于从前那一个节点。
     """
-    reco = g.probe(卡牌_无畏斧, image)
-    # probe() 可能返回 None（引擎没收下任务，多半是控制器掉线）——
-    # 从前这里直接取 reco.all_results，会抛 AttributeError。补 None 闸。
-    if reco is None:
-        return []
-    return sorted(
-        (r for r in (reco.all_results or []) if r.score >= AXE_MIN_SCORE),
-        key=lambda r: (r.box[1], r.box[0]),
-    )
+    out = []
+    for node in rules.ascend_templates(SCREEN_FORGE):
+        reco = g.probe(node, image)
+        # probe() 可能返回 None（引擎没收下任务，多半是控制器掉线）——
+        # 从前这里直接取 reco.all_results，会抛 AttributeError。补 None 闸。
+        if reco is None:
+            return []
+        out += [r for r in (reco.all_results or []) if r.score >= AXE_MIN_SCORE]
+    return sorted(out, key=lambda r: (r.box[1], r.box[0]))
 
 
-def _upgrade(g, limit=None):
+def _upgrade(g, rules, limit=None):
     """在「卡牌升变」界面里，从最靠前的一把开始升。返回实际升成的把数。
 
     每次重新读一遍网格再取**最靠前**的一把，不按下标记号死点：升变后卡面
@@ -101,7 +109,7 @@ def _upgrade(g, limit=None):
     """
     done = 0
     while limit is None or done < limit:
-        hits = _axes(g, g.capture())
+        hits = _axes(g, g.capture(), rules)
         if not hits:
             log(f"    网格里再没有未升变的斧头了（已升 {done} 把），收工")
             break
@@ -148,6 +156,18 @@ def handle(g, hit):
     真升成了几把，日志里 `_upgrade` 会报；**"这一轮没得升"不等于出错**——
     多数时候网格里本来就没有未升变的斧头。
     """
+    try:
+        rules = load_rules()
+    except CardsConfigError as exc:
+        return park(g, WAIT_CARDS_CONFIG, "cards_config_broken",
+            f"锻造使：卡牌配置读不动（{exc}） —— 停下等人（已存 cards_config_broken.png）")
+    try:
+        # 名单里的卡在这屏上没有卡面模板 —— 锻造屏**没有读名字的兜底**，不猜
+        rules.ascend_templates(SCREEN_FORGE)
+    except CardsConfigError as exc:
+        return park(g, WAIT_CARDS_CONFIG, "cards_config_noface",
+            f"锻造使：{exc} —— 停下等人（已存 cards_config_noface.png）")
+
     # 1) 进「卡牌升变」子界面
     if not g.click_when(形态升变, guard=hit.matched):
         log("    没找到「形态升变」，直接离开")
@@ -159,7 +179,7 @@ def handle(g, hit):
             "点了「形态升变」但没进到卡牌升变界面 —— 停下（已存 forge_stuck.png）")
 
     # 2) 升两把
-    done = _upgrade(g, UPGRADES)
+    done = _upgrade(g, rules, UPGRADES)
 
     # 3) 返回锻造使。现截现验：返回箭头在卡牌升变那一屏上，验到才点
     if not g.click_when(返回, timeout=5.0, guard=(卡牌升变界面,)):

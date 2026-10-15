@@ -22,7 +22,7 @@ import time
 import numpy as np
 
 from strings import 卡牌名, 选卡副标题, 选卡确定, 选择卡牌
-from shared.cards import looks_like_name
+from shared.cards import base_name, looks_like_name
 # 面板范围 / 格位表 / 格心大小 —— 固化坐标收在 shared/coords.py
 #（1280x720 基准；换分辨率只看那个文件）。这里 import 回原名，使用点一字未动。
 from shared.coords import CARD_GRID as GRID
@@ -42,8 +42,8 @@ CELL_MIN = 45
 AFTER_TAP = 1.1
 
 
-# 移除屏的**保留名单**不在这个文件里了 —— 在 `shared/cards.py`（`KEEP` 是名字那份，
-# `KEEP_TEMPLATES` 是卡面那份，商店的销毁卡牌屏两个都用）。
+# 移除屏的**保留名单**不在这个文件里了 —— 在 `script/cards/保留.json`（判据在
+# `shared/cards.py` 的 `Rules`，卡面那份是同文件的 `FACES`，商店的销毁卡牌屏两个都用）。
 # 这条单子最早住在这儿（2026-10-03 事件那条路），2026-10-04 商店那条路要的是同一张，
 # 而屏模块之间不许互相 import（tools/check_screens.py 第 1 条钉着），所以搬去了公共层。
 
@@ -384,6 +384,81 @@ def read_slot(g, cell):
         return None, (f"{where}「{name}」读到了，可再点一下**没收回去**"
                       "（面板还开着）—— 选中被搅乱了")
     return name, None
+
+
+def wanted(g, cells_, rules, limit):
+    """**按名字挑**：逐格读出卡名，把在 `rules.is_wanted()` 名单里的选上，最多 `limit` 个。
+
+    给「往卡组里加牌」那两屏用（`ops/card_copy.py` 的复制屏、`ops/card_add.py` 的加入
+    卡组屏）—— 用户 2026-10-15 加的第三条链，名单在 `script/cards/选择.json`。
+    **这两屏共用同一个函数**：形状一模一样（逐格读名 → 挑名单里的 → 选上 → 点「确定」），
+    不同的只有"上限几张"（`limit`）和"一张都没挑中时怎么办"（**那是调用方的事**，
+    这个函数不管）。
+
+    `cells_` 由调用方给（`cells(image)`）—— 切不出来是**另一回事**（那屏整个没读明白），
+    出口归调用方，这个函数不替它决定。
+
+    `limit` 之外的格子**读都不读**：读到第 `limit` 张就收工（一张 5 格的屏每格要
+    2 次点击 + 每次 1.1s，能少读一格是一格）。
+
+    → `(chosen, trouble)`：
+
+      · `chosen` = `[((行, 列), 卡名)]`，**按读到（＝行优先）的顺序**，可能为空
+        （名单里的牌屏上一张都没有）；形状与 `names()` 那个格式化函数、
+        与 `ops/card_remove.py` 里那份 `chosen` 是同一个（日志才拼得出来）。
+      · `trouble` = **`(出口后缀, 一句说明)`** 或 `None`（＝一切正常）。那一截后缀
+        就是现场图名的尾巴 —— 调用方照它存图（`cardpick_select_<后缀>.png`），
+        三种收场在事后一眼分得开：
+
+          `"unknown"` = 哪一格读不明白（点漏了 / 卡名认不出 / 点不回去）；
+          `"mismatch"` = 选上了，可面板上写的不是想拿的那张（格子表歪了）。
+
+        非 None 时 `chosen` 里是**已经选上的那几张**（**不替调用方取消它们** ——
+        调用方随即停车等人，屏上是什么样就让它是什么样，接手的人一眼看得见；
+        偷偷点回去反而会在这个屏上留下没量过的动作）。
+
+    **为什么用 `read_slot` 读、不用 `scan`**：`scan()` 是"每格单击一下"，扫完**最后那张
+    还选着**，得靠 `clear_box` 补一下 —— 而"再点一下能取消"那条**在第一版那屏上没量过**
+    （`clear_box` 的 docstring 自己写着）。这两屏是**要提交选中**的，把不该拿的牌留在
+    选中里就是真拿了。`read_slot` 是**配对点击 + 每步核对**：点开必须弹面板、点回去必须
+    回到深色，收不回去它自己就报 trouble。
+
+    **选中之后要核一遍**（`cardpick_select_mismatch` 那条出口的由来）：名单说"要这张"，
+    选上之后面板上得**还写着同一个名字**。对不上 = 这一点落到了别的格上（格子表歪了 /
+    面板读到的是上一张的残留），**不猜、交出去停车**。
+
+    ---- 为什么分两步走（先全读完、再回头选）----
+
+    `read_slot` / `undo` 有一条**前提：进屏时格子上"一张都没选"** —— `undo` 的收尾就是
+    "等到 `nothing_selected` 为真"，而它读的 `PANEL_BAND` 是**整块面板**：只要屏上已经
+    选着任意一张，那一带就一直亮着，`undo` 永远等不到那个条件，于是**一路再点下去**
+    （每多转一圈就多点一下，把更多格子选上）。所以"边读边选"会当场把这条链走坏。
+    ⇒ 第一步全程只读（清一色配对点击，屏上一直是一张没选），第二步才逐格选上。
+    """
+    found = []                                   # 第一步：只读，屏上一直是"一张没选"
+    for cell in cells_:
+        where = f"{cell['row']}-{cell['col']}"
+        name, trouble = read_slot(g, cell)
+        if trouble:
+            return [], ("unknown", f"{where}：{trouble}")
+        if rules.is_wanted(name):
+            found.append((cell, name))
+            log(f"    选卡：{where}「{name}」在名单里（读到 {len(found)}/{limit} 张）")
+            if len(found) >= limit:
+                break
+    if not found:
+        return [], None
+
+    chosen = []                                  # 第二步：把挑中的逐格选上
+    for cell, want in found:
+        tap_slot(g, cell)
+        _, back, _ = frame(g)
+        if back is None or base_name(back) != base_name(want):
+            return chosen, ("mismatch",
+                            f"{cell['row']}-{cell['col']} 想选「{want}」，可选上之后"
+                            f"面板上写的是「{back or '（空）'}」—— 对不上")
+        chosen.append(((cell["row"], cell["col"]), want))
+    return chosen, None
 
 
 def bands(profile, thr):

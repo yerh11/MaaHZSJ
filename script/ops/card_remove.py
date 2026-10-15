@@ -1,7 +1,10 @@
 """卡牌操作小类 · **移除**：两副卷面，判据只差"最多"两个字，走法差很多。
 
+两份名单都在 `script/cards/`（`保留.json` / `移除.json`），判据在 `shared/cards.py`
+的 `Rules.is_removed`（**移除优先**，然后是"不在保留里"）。
+
   · `run`       —— 第一版（副标题「从卡组中选择一张卡牌移除。」）：
-    扫一遍挑一张**不在 `KEEP`** 的牌移除；一张可移除的都没有就点左上角「返回」。
+    扫一遍挑一张**要移除**的牌移除；一张可移除的都没有就点左上角「返回」。
   · `run_multi` —— 第二版（副标题「选择最多3张卡牌，将其移除。」）：
     点一张＝**加进选中**（最多 3 张、可以不选），选完点「确定」；
     **这一版没有「返回」**，所以分派时它必须排在 `run` 前面认领。
@@ -14,21 +17,31 @@ import time
 
 from strings import 选卡返回, 选择卡牌
 from shared import grid
-from shared.cards import KEEP, base_name
+from shared.cards import CardsConfigError, load_rules
 from shared.coords import CARD_BLANK
-from shared.reasons import WAIT_CARD, WAIT_CARD_CONFIRM
+from shared.reasons import WAIT_CARD, WAIT_CARD_CONFIRM, WAIT_CARDS_CONFIG
 from shared.kit import log, park
 
 
 def run(g, image):
-    """移除屏：挑一张不在 KEEP 里的牌移除；一张都没有 → 点左上角「返回」取消。
+    """移除屏：挑一张"要移除"的牌移除；一张都没有 → 点左上角「返回」取消。
+
+    "要移除"由 `script/cards/` 那两张配置算出来（`rules.is_removed`：`移除.json`
+    优先，然后是"不在 保留.json 里"）—— 名字那份是权威，比对规则见
+    `shared/cards.py`。
 
     先 `grid.scan()` 把每张卡点一遍读名字（只改选中项、不提交，见 `nodes/cardpick.py` 的模块 docstring）。
     **读不出名字的格子不碰**（可能是名单里的牌，猜不得）：
-      · 有**读得准**的名单外牌 → 移它（取行→列的第一张）。
-      · 一张名单外牌都没有、又没有读不出的格子 → 确实全保留了 → 点「返回」。
-      · 有读不出的格子、又没有名单外牌 → 分不清是不是"全保留了"，**不猜**，停车。
+      · 有**读得准**的待移除牌 → 移它（取行→列的第一张）。
+      · 一张待移除牌都没有、又没有读不出的格子 → 确实全保留了 → 点「返回」。
+      · 有读不出的格子、又没有待移除牌 → 分不清是不是"全保留了"，**不猜**，停车。
     """
+    try:
+        rules = load_rules()
+    except CardsConfigError as exc:
+        return park(g, WAIT_CARDS_CONFIG, "cards_config_broken",
+            f"移除屏：卡牌配置读不动（{exc}） —— 停下等人（已存 cards_config_broken.png）")
+
     cards = grid.scan(g)
     if not cards:
         return park(g, WAIT_CARD, "cardpick_nogrid",
@@ -36,7 +49,7 @@ def run(g, image):
 
     grid.clear_box(g, cards)      # 扫完别把卡牌信息框留在屏上（见那个函数的 docstring）
     unknown = [c for c in cards if not c["name"]]
-    outside = [c for c in cards if c["name"] and base_name(c["name"]) not in KEEP]
+    outside = [c for c in cards if c["name"] and rules.is_removed(c["name"])]
 
     if outside:
         t = outside[0]
@@ -54,7 +67,7 @@ def run(g, image):
         return park(g, WAIT_CARD, "cardpick_remove_unknown",
                     f"移除屏：没有名单外的牌，但有 {len(unknown)} 张名字读不出（{where}） —— 停下等人（已存 cardpick_remove_unknown.png）")
 
-    log(f"    移除屏：{len(cards)} 张全在保留名单里（{'、'.join(KEEP)}）"
+    log(f"    移除屏：{len(cards)} 张全在保留名单里（{'、'.join(rules.keep_names)}）"
         " —— 没有可移除的，点左上角「返回」取消")
     if not g.click_when(选卡返回, guard=(选择卡牌,)):
         return park(g, WAIT_CARD, "cardpick_noback",
@@ -94,6 +107,12 @@ def run_multi(g):
     时，第 ② 步一张都不选，第 ③ 步核"面板关着"，照样点「确定」走人
     （用户原话「取消选中再点「确定」」）。
     """
+    try:
+        rules = load_rules()
+    except CardsConfigError as exc:
+        return park(g, WAIT_CARDS_CONFIG, "cards_config_broken",
+            f"选卡（最多3张）：卡牌配置读不动（{exc}） —— 停下等人（已存 cards_config_broken.png）")
+
     cells = grid.slots()
     by_key = {(c["row"], c["col"]): c for c in cells}
 
@@ -166,7 +185,7 @@ def run_multi(g):
         if trouble:
             return park(g, WAIT_CARD, "cardpick_name_unknown",
                         f"选卡（最多3张）：{trouble} —— 停下等人（已存 cardpick_name_unknown.png）")
-        if base_name(name) in KEEP:
+        if rules.is_kept(name):
             log(f"    选卡（最多3张）：{key[0]}-{key[1]}「{name}」在保留名单里 —— 原样放过")
             continue
         chosen.append((key, name))
